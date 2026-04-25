@@ -1,4 +1,4 @@
-"""CLI for managing isolated Claude Code containers."""
+"""CLI for managing isolated coding agent containers."""
 
 import click
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 def _default_env_path() -> Path:
-    return docker.find_dockerfile() / ".env"
+    return docker.DOCKERFILES_DIR / ".env"
 
 
 def _pick_one(running_only: bool = True) -> str:
@@ -23,10 +23,10 @@ def _pick_one(running_only: bool = True) -> str:
     raise SystemExit(f"Multiple containers found: {names}\nSpecify a name.")
 
 
-def _image_exists(version: str) -> bool:
+def _image_exists(agent: str, version: str) -> bool:
     import subprocess
     r = subprocess.run(
-        ["docker", "images", "-q", f"{docker.IMAGE}:{version}"],
+        ["docker", "images", "-q", docker.image_tag(agent, version)],
         capture_output=True, text=True,
     )
     return bool(r.stdout.strip())
@@ -34,28 +34,29 @@ def _image_exists(version: str) -> bool:
 
 @click.group()
 def main():
-    """geno-iso — Isolated Docker containers for Claude Code."""
+    """geno-iso — Isolated containers for coding agents."""
     pass
 
 
 @main.command()
 @click.argument("name", required=False)
 @click.argument("workspace", required=False, type=click.Path(exists=True))
-@click.option("--rm", "ephemeral", is_flag=True, help="One-shot mode: run claude and remove container on exit")
-@click.option("--version", "version", default=None, help="Claude Code version override")
-@click.argument("claude_args", nargs=-1, type=click.UNPROCESSED)
-def run(name, workspace, ephemeral, version, claude_args):
+@click.option("--agent", "-a", default=docker.DEFAULT_AGENT, type=click.Choice(list(docker.AGENTS)), help="Agent to run")
+@click.option("--rm", "ephemeral", is_flag=True, help="One-shot mode: run and remove on exit")
+@click.option("--version", "-v", "version", default=None, help="Agent CLI version override")
+@click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
+def run(name, workspace, agent, ephemeral, version, agent_args):
     """Create a persistent container, or run a one-shot with --rm.
 
-    Persistent mode (default): creates a background container you enter with 'geno-iso it'.
-    One-shot mode (--rm): runs claude with ARGS and removes the container on exit.
+    Persistent mode (default): creates a background container you enter with 'it'.
+    One-shot mode (--rm): runs the agent with ARGS and removes the container on exit.
     """
     ws = Path(workspace) if workspace else Path.cwd()
     name = name or docker.derive_name(ws)
 
-    if version and not _image_exists(version):
-        click.echo(f"Image geno-iso:{version} not found. Building...")
-        docker.build_image(version=version)
+    if not _image_exists(agent, version or docker.AGENTS[agent]["default_version"]):
+        click.echo(f"Image not found. Building {agent}...")
+        docker.build_image(agent=agent, version=version)
 
     env_path = _default_env_path()
     credentials.ensure_fresh(env_path)
@@ -64,14 +65,16 @@ def run(name, workspace, ephemeral, version, claude_args):
         result = docker.run_ephemeral(
             workspace=ws,
             env_file=env_path,
-            claude_args=list(claude_args) if claude_args else None,
+            agent=agent,
+            claude_args=list(agent_args) if agent_args else None,
         )
         raise SystemExit(result.returncode)
 
-    result = docker.create_container(name=name, workspace=ws, env_file=env_path)
+    result = docker.create_container(name=name, workspace=ws, env_file=env_path, agent=agent)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
-    click.echo(f"Container ready: {docker.PREFIX}{name}")
+    entrypoint = agent if agent != "claude" else "claude"
+    click.echo(f"Container ready: {docker.CONTAINER_PREFIX}{name} ({agent})")
     click.echo(f"  Enter with:  geno-iso it {name}")
     click.echo(f"  Shell with:  geno-iso it {name} --shell")
     click.echo(f"  Stop with:   geno-iso stop {name}")
@@ -106,14 +109,34 @@ def ls_cmd(as_json, show_all):
 
 @main.command("it")
 @click.argument("name", required=False)
-@click.option("--shell", is_flag=True, help="Open a bash shell instead of Claude Code")
-def it_cmd(name, shell):
+@click.option("--shell", is_flag=True, help="Open a bash shell instead of the agent CLI")
+@click.option("--cmd", default=None, help="Custom command to exec")
+def it_cmd(name, shell, cmd):
     """Interactively enter a running container.
 
-    Default: launches Claude Code. Use --shell for bash.
+    Default: launches the agent CLI. Use --shell for bash, or --cmd for arbitrary commands.
     """
     name = name or _pick_one(running_only=True)
-    docker.exec_into(name, cmd="bash" if shell else "claude")
+    if cmd:
+        exec_cmd = cmd
+    elif shell:
+        exec_cmd = "bash"
+    else:
+        exec_cmd = _detect_agent(name)
+    docker.exec_into(name, cmd=exec_cmd)
+
+
+def _detect_agent(container_name: str) -> str:
+    """Detect which agent CLI is in the container by checking its image tag."""
+    containers = docker.list_containers()
+    for c in containers:
+        if c["ShortName"] == container_name:
+            image = c.get("Image", "")
+            for agent in docker.AGENTS:
+                if agent in image:
+                    return agent
+            break
+    return "claude"
 
 
 @main.command()
@@ -123,7 +146,7 @@ def stop(name):
     name = name or _pick_one(running_only=True)
     result = docker.stop_container(name)
     if result.returncode == 0:
-        click.echo(f"Stopped: {docker.PREFIX}{name}")
+        click.echo(f"Stopped: {docker.CONTAINER_PREFIX}{name}")
     raise SystemExit(result.returncode)
 
 
@@ -135,19 +158,37 @@ def rm(name, force):
     name = name or _pick_one(running_only=False)
     result = docker.remove_container(name, force=force)
     if result.returncode == 0:
-        click.echo(f"Removed: {docker.PREFIX}{name}")
+        click.echo(f"Removed: {docker.CONTAINER_PREFIX}{name}")
     raise SystemExit(result.returncode)
 
 
 @main.command()
-@click.option("--version", default=docker.DEFAULT_VERSION, help="Claude Code version")
-def build(version):
-    """Build the geno-iso Docker image."""
-    click.echo(f"Building geno-iso:{version}...")
-    result = docker.build_image(version=version)
-    if result.returncode == 0:
-        click.echo(f"Built: geno-iso:{version}")
-    raise SystemExit(result.returncode)
+@click.option("--agent", "-a", default=None, type=click.Choice(list(docker.AGENTS)), help="Agent to build (omit for all)")
+@click.option("--version", "-v", "version", default=None, help="Agent CLI version")
+def build(agent, version):
+    """Build agent Docker images.
+
+    Builds the base image first, then the specified agent (or all agents).
+    """
+    click.echo("Building base image...")
+    result = docker.build_base()
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+    agents_to_build = [agent] if agent else list(docker.AGENTS)
+
+    for a in agents_to_build:
+        v = version if agent else None
+        info = docker.AGENTS[a]
+        display_v = v or info["default_version"]
+        click.echo(f"Building {a}:{display_v}...")
+        result = docker.build_image(agent=a, version=v)
+        if result.returncode != 0:
+            click.echo(f"Failed to build {a}", err=True)
+            raise SystemExit(result.returncode)
+        click.echo(f"  Built: {docker.image_tag(a, v)}")
+
+    click.echo("Done.")
 
 
 @main.command()
@@ -157,3 +198,21 @@ def creds():
     cred_data = credentials.extract_from_keychain()
     credentials.write_env_file(env_path, cred_data)
     click.echo(f"Credentials written to {env_path}")
+
+
+@main.command()
+def setup():
+    """Sync Dockerfiles from repo to ~/.geno/geno-iso/dockerfiles/."""
+    import shutil
+    src = Path(__file__).parent.parent / "dockerfiles"
+    if not src.exists():
+        raise SystemExit(f"Source dockerfiles not found at {src}")
+    dst = docker.DOCKERFILES_DIR
+    dst.mkdir(parents=True, exist_ok=True)
+    for agent_dir in src.iterdir():
+        if agent_dir.is_dir() and (agent_dir / "Dockerfile").exists():
+            target = dst / agent_dir.name
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(agent_dir / "Dockerfile", target / "Dockerfile")
+            click.echo(f"  {agent_dir.name}/Dockerfile -> {target}/Dockerfile")
+    click.echo(f"Dockerfiles synced to {dst}")
