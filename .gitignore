@@ -1,0 +1,9 @@
+.DS_Store
+.env
+credentials.json
+__pycache__/
+*.pyc
+*.py[cod]
+*.egg-info/
+dist/
+build/

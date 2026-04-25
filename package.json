@@ -1,0 +1,17 @@
+{
+  "name": "geno-iso",
+  "version": "0.1.0",
+  "description": "Isolated Docker containers for running Claude Code",
+  "skills": {
+    "geno-iso": "skills/geno-iso",
+    "geno-iso-containers-run": "skills/geno-iso-containers-run",
+    "geno-iso-containers-list": "skills/geno-iso-containers-list",
+    "geno-iso-containers-enter": "skills/geno-iso-containers-enter",
+    "geno-iso-images-build": "skills/geno-iso-images-build",
+    "geno-iso-credentials-extract": "skills/geno-iso-credentials-extract"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/42euge/geno-iso"
+  }
+}

@@ -1,0 +1,7 @@
+role: geno-iso
+description: Isolated Docker containers for running Claude Code
+capabilities:
+  - docker
+  - isolation
+  - claude-code
+  - cli
