@@ -44,12 +44,24 @@ def main():
 @click.option("--agent", "-a", default=docker.DEFAULT_AGENT, type=click.Choice(list(docker.AGENTS)), help="Agent to run")
 @click.option("--rm", "ephemeral", is_flag=True, help="One-shot mode: run and remove on exit")
 @click.option("--version", "-v", "version", default=None, help="Agent CLI version override")
+@click.option("--skills", "-s", multiple=True, help="Geno skillsets via geno-tools (e.g. -s media -s research)")
+@click.option("--npx-skill", multiple=True, help="Vercel-style skills via npx (e.g. --npx-skill user/repo)")
+@click.option("--plugin", multiple=True, help="Claude Code plugins from git repos")
+@click.option("--mcp-config", type=click.Path(exists=True), help="MCP config file to copy into container")
 @click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
-def run(name, workspace, agent, ephemeral, version, agent_args):
+def run(name, workspace, agent, ephemeral, version, skills, npx_skill, plugin, mcp_config, agent_args):
     """Create a persistent container, or run a one-shot with --rm.
 
     Persistent mode (default): creates a background container you enter with 'it'.
     One-shot mode (--rm): runs the agent with ARGS and removes the container on exit.
+
+    Pre-install extensions to keep your host Claude Code clean:
+
+    \b
+        geno-iso run -s media -s research myproject .
+        geno-iso run --npx-skill user/repo myproject .
+        geno-iso run --plugin git@github.com:user/plugin.git myproject .
+        geno-iso run --mcp-config ./mcp.json myproject .
     """
     ws = Path(workspace) if workspace else Path.cwd()
     name = name or docker.derive_name(ws)
@@ -73,11 +85,39 @@ def run(name, workspace, agent, ephemeral, version, agent_args):
     result = docker.create_container(name=name, workspace=ws, env_file=env_path, agent=agent)
     if result.returncode != 0:
         raise SystemExit(result.returncode)
-    entrypoint = agent if agent != "claude" else "claude"
+
+    _install_extensions(name, skills, npx_skill, plugin, mcp_config)
+
     click.echo(f"Container ready: {docker.CONTAINER_PREFIX}{name} ({agent})")
+    installed = list(skills) + list(npx_skill) + list(plugin)
+    if installed:
+        click.echo(f"  Extensions: {', '.join(installed)}")
+    if mcp_config:
+        click.echo(f"  MCP config: {mcp_config}")
     click.echo(f"  Enter with:  geno-iso it {name}")
     click.echo(f"  Shell with:  geno-iso it {name} --shell")
     click.echo(f"  Stop with:   geno-iso stop {name}")
+
+
+def _install_extensions(name, skills, npx_skills, plugins, mcp_config):
+    """Install all requested extensions into a container."""
+    echo = lambda s: click.echo(f"  {s}")
+
+    if skills:
+        click.echo("Installing geno skillsets...")
+        docker.install_skills(name, list(skills), callback=lambda s: echo(f"geno-tools install {s}"))
+
+    if npx_skills:
+        click.echo("Installing npx skills...")
+        docker.install_npx_skills(name, list(npx_skills), callback=lambda s: echo(f"npx skills add {s}"))
+
+    if plugins:
+        click.echo("Installing plugins...")
+        docker.install_plugins(name, list(plugins), callback=lambda s: echo(f"claude plugin add {s}"))
+
+    if mcp_config:
+        click.echo(f"Configuring MCP from {mcp_config}...")
+        docker.configure_mcp(name, mcp_config)
 
 
 @main.command("ls")
@@ -188,6 +228,47 @@ def build(agent, version):
             raise SystemExit(result.returncode)
         click.echo(f"  Built: {docker.image_tag(a, v)}")
 
+    click.echo("Done.")
+
+
+@main.command("extend")
+@click.argument("name", required=False)
+@click.option("--skill", "-s", multiple=True, help="Geno skillset via geno-tools")
+@click.option("--npx-skill", multiple=True, help="Vercel-style skill via npx")
+@click.option("--plugin", multiple=True, help="Claude Code plugin from git repo")
+@click.option("--mcp-config", type=click.Path(exists=True), help="MCP config file to copy in")
+@click.option("--list", "list_ext", is_flag=True, help="List installed extensions")
+def extend_cmd(name, skill, npx_skill, plugin, mcp_config, list_ext):
+    """Install extensions on a running container.
+
+    \b
+    Examples:
+        geno-iso extend myproject -s media -s research
+        geno-iso extend myproject --npx-skill user/repo
+        geno-iso extend myproject --plugin git@github.com:user/plugin.git
+        geno-iso extend myproject --mcp-config ./mcp.json
+        geno-iso extend myproject --list
+    """
+    name = name or _pick_one(running_only=True)
+
+    if list_ext or not (skill or npx_skill or plugin or mcp_config):
+        click.echo(f"Extensions on {docker.CONTAINER_PREFIX}{name}:")
+        result = docker.exec_cmd(name, [
+            "/home/agent/.local/bin/geno-tools", "ls",
+        ], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            click.echo(f"\n  Geno skillsets:\n{result.stdout}")
+        else:
+            click.echo("  Geno skillsets: (none)")
+
+        result = docker.exec_cmd(name, [
+            "claude", "mcp", "list",
+        ], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            click.echo(f"  MCP servers:\n{result.stdout}")
+        return
+
+    _install_extensions(name, skill, npx_skill, plugin, mcp_config)
     click.echo("Done.")
 
 
