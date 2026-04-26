@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reward-hack-detector"
+version = "0.1.0"
+description = "Detect reward hacks and surface problematic behaviors during RL training of language models."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "geno-iso" }]
+keywords = ["rlhf", "reward-hacking", "evaluation", "alignment", "ml"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = []
+
+[project.optional-dependencies]
+embeddings = ["sentence-transformers>=2.2"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+detect_reward_hacks = "reward_hack_detector.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["reward_hack_detector*"]
+exclude = ["tests*", "examples*"]
