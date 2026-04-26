@@ -1,5 +1,5 @@
 role: geno-iso
-description: Isolated Docker containers for running Claude Code
+description: Isolated Docker containers for running coding agents
 capabilities:
   - docker
   - isolation

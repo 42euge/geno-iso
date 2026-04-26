@@ -2,7 +2,7 @@
 name: geno-iso-images-build
 description: >-
   Build or rebuild the geno-iso Docker image.
-  Use when user says /gt-iso-images-build or asks to build the Docker image.
+  Use when user says /geno-iso-images-build or asks to build the Docker image.
 allowed-tools: "Bash(geno-iso build *)"
 argument-hint: "[--version X.Y.Z]"
 license: MIT
@@ -15,6 +15,6 @@ metadata:
 
 ## Workflow
 
-1. Run `geno-iso build` (or `geno-iso build --version X.Y.Z` for a specific Claude Code version)
+1. Run `geno-iso build` (or `geno-iso build --version X.Y.Z` for a specific agent CLI version)
 2. Report success and the image tag
 3. Default version is 2.1.119 — override with `--version`

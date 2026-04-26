@@ -1,7 +1,7 @@
 {
   "name": "geno-iso",
   "version": "0.1.0",
-  "description": "Isolated Docker containers for running Claude Code",
+  "description": "Isolated Docker containers for running coding agents",
   "skills": {
     "geno-iso": "skills/geno-iso",
     "geno-iso-containers-run": "skills/geno-iso-containers-run",

@@ -2,7 +2,7 @@
 name: geno-iso-credentials-extract
 description: >-
   Extract or refresh OAuth credentials from macOS Keychain.
-  Use when user says /gt-iso-credentials-extract or container auth fails.
+  Use when user says /geno-iso-credentials-extract or container auth fails.
 allowed-tools: "Bash(geno-iso creds)"
 license: MIT
 metadata:
