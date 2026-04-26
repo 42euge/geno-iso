@@ -1,0 +1,34 @@
+# Example experiment: same dataset graded four different ways.
+# Run with:  compare_graders --config configs/example.yaml
+name: rubrics_vs_preference_vs_heuristic
+
+dataset:
+  path: ../data/dataset.csv
+  sample_id_col: sample_id
+  group_col: domain          # bias-by-group slicing
+
+graders:
+  - name: rubric_a
+    type: rubric
+    path: ../data/rubric_a_scores.csv
+  - name: rubric_b
+    type: rubric
+    path: ../data/rubric_b_scores.csv
+  - name: preference_model
+    type: preference_model
+    path: ../data/preference_scores.csv
+  - name: heuristic_length
+    type: heuristic
+    path: ../data/heuristic_scores.csv
+
+# Treat scores >= 0.7 (or > 0 for the preference model) as "passing"
+# for kappa / binarised-agreement metrics.
+binarise_threshold: 0.7
+
+# Top-k as a fraction of the dataset (0.2 => top 20%).
+top_k: 0.2
+
+max_disagreements: 10
+plots: false
+
+output_dir: ../runs/example

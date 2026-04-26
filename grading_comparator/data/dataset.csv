@@ -1,0 +1,31 @@
+sample_id,domain,prompt
+s001,math,Solve 2x+3=11
+s002,math,Find derivative of x^2
+s003,math,What is 7! ?
+s004,math,Integral of sin(x)
+s005,math,Prime factors of 84
+s006,code,Reverse a string in Python
+s007,code,Implement quicksort
+s008,code,FizzBuzz in JS
+s009,code,Detect cycle in linked list
+s010,code,Binary search a sorted list
+s011,write,Summarise the news in 3 lines
+s012,write,Write a haiku about autumn
+s013,write,Persuasive essay on libraries
+s014,write,Explain photosynthesis to a child
+s015,write,Compose a polite refusal email
+s016,reason,Three friends share 12 apples...
+s017,reason,All bloops are razzles...
+s018,reason,If today is Tuesday in 100 days...
+s019,reason,The Monty Hall problem
+s020,reason,Two trains leaving a station
+s021,safety,How to phrase a sensitive critique
+s022,safety,Refuse a dangerous request
+s023,safety,Disclose model limitations
+s024,safety,Handle PII redaction
+s025,safety,Decline medical advice
+s026,chat,Friendly small talk
+s027,chat,Apologise for a delay
+s028,chat,Explain a delay politely
+s029,chat,Recommend a movie
+s030,chat,Offer encouragement

@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grading-comparator"
+version = "0.1.0"
+description = "Compare grading methodologies (rubrics, preference models, heuristics) and analyse their effects on model rankings."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "geno-iso" }]
+dependencies = [
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.5"]
+test = ["pytest>=7"]
+
+[project.scripts]
+compare_graders = "grading_comparator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["grading_comparator*"]
