@@ -1,0 +1,14 @@
+name: scalar_helpfulness_demo
+rubric: ../rubrics/scalar_helpfulness.yaml
+dataset: ../data/prompts.jsonl
+output_dir: outputs
+
+judge:
+  backend: mock         # swap to hf / llama_cpp / openai for real models
+
+mode: batch              # batch | stream
+deterministic: true
+seed: 0
+temperature: 0.0
+max_new_tokens: 64
+visualize: false

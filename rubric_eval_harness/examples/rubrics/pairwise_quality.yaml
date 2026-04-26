@@ -1,0 +1,25 @@
+name: pairwise_quality_v1
+kind: pairwise
+description: >-
+  Given two candidate responses to the same prompt, choose the better one
+  overall (correctness, clarity, completeness). Ties are allowed.
+version: "0.1.0"
+allow_tie: true
+labels: ["A", "B"]
+judge_prompt_template: |
+  You are an evaluator comparing two responses to the same prompt.
+  Choose between {label_a} or {label_b}, or output "TIE" if they are equivalent.
+
+  User prompt:
+  {prompt}
+
+  Response {label_a}:
+  {response_a}
+
+  Response {label_b}:
+  {response_b}
+
+  Output exactly one line of the form:
+  Verdict: <{label_a}|{label_b}|TIE>
+metadata:
+  notes: For preference modeling and reward signal sanity checks.

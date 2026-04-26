@@ -1,0 +1,28 @@
+# Example: use a local Hugging Face small model as the judge.
+# Requires the optional [hf] extra: pip install rubric-eval-harness[hf]
+
+name: scalar_helpfulness_hf
+rubric: ../rubrics/scalar_helpfulness.yaml
+dataset: ../data/prompts.jsonl
+output_dir: outputs
+
+judge:
+  backend: hf
+  model_id: Qwen/Qwen2.5-0.5B-Instruct
+  device: cuda
+  dtype: auto
+
+# Generate candidate responses with the same small model. Comment out to use
+# the responses already in the dataset.
+candidate:
+  backend: hf
+  model_id: Qwen/Qwen2.5-0.5B-Instruct
+  device: cuda
+
+mode: stream
+deterministic: true
+seed: 42
+temperature: 0.0
+max_new_tokens: 128
+limit: 8
+visualize: true

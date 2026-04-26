@@ -1,0 +1,27 @@
+name: helpfulness_v1
+kind: scalar
+description: >-
+  Rate the helpfulness of a response on a 1-5 scale, where 1 is unhelpful or
+  incorrect and 5 is precise, complete, and directly answers the user.
+version: "0.1.0"
+scale_min: 1
+scale_max: 5
+judge_prompt_template: |
+  You are an evaluator. Rate the helpfulness of the candidate response on a
+  score between {scale_min} and {scale_max}, where {scale_min} is unhelpful or
+  incorrect and {scale_max} is a precise, complete answer.
+
+  User prompt:
+  {prompt}
+
+  Candidate response:
+  {response}
+
+  Reference (may be empty):
+  {reference}
+
+  Output exactly one line of the form:
+  Score: <integer>
+metadata:
+  author: rubric-eval-harness
+  intended_judge: small instruction-tuned LM

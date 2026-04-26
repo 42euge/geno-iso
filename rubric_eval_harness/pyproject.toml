@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rubric-eval-harness"
+version = "0.1.0"
+description = "Fast iteration harness for testing rubric designs against small language models."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "rubric-eval-harness contributors" }]
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+viz = ["matplotlib>=3.7"]
+hf = ["transformers>=4.40", "torch>=2.0"]
+llamacpp = ["llama-cpp-python>=0.2"]
+api = ["requests>=2.31"]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+run_experiment = "rubric_harness.cli:main"
+rubric-eval = "rubric_harness.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["rubric_harness*"]

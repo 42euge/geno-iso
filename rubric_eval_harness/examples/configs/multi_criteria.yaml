@@ -1,0 +1,14 @@
+name: multi_criteria_demo
+rubric: ../rubrics/multi_criteria.yaml
+dataset: ../data/prompts.jsonl
+output_dir: outputs
+
+judge:
+  backend: mock
+
+mode: batch
+deterministic: true
+seed: 0
+temperature: 0.0
+max_new_tokens: 128
+visualize: false

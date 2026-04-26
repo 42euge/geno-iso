@@ -1,0 +1,14 @@
+name: pairwise_quality_demo
+rubric: ../rubrics/pairwise_quality.yaml
+dataset: ../data/prompts.jsonl
+output_dir: outputs
+
+judge:
+  backend: mock
+
+mode: stream             # show per-item progress
+deterministic: true
+seed: 0
+temperature: 0.0
+max_new_tokens: 64
+visualize: false

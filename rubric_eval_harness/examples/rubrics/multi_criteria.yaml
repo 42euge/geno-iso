@@ -1,0 +1,40 @@
+name: multi_criteria_v1
+kind: multi_criteria
+description: >-
+  Score a response along three independent criteria. The aggregate is a
+  weighted mean used for ranking.
+version: "0.1.0"
+criteria:
+  - name: correctness
+    description: Factually accurate and free of made-up details.
+    scale_min: 1
+    scale_max: 5
+    weight: 2.0
+  - name: clarity
+    description: Easy to understand, well-structured, no unnecessary jargon.
+    scale_min: 1
+    scale_max: 5
+    weight: 1.0
+  - name: completeness
+    description: Covers the question fully without significant omissions.
+    scale_min: 1
+    scale_max: 5
+    weight: 1.5
+judge_prompt_template: |
+  You are an evaluator. Score the candidate response along the criteria below.
+  Each criterion is on the listed integer scale.
+
+  User prompt:
+  {prompt}
+
+  Candidate response:
+  {response}
+
+  Reference (may be empty):
+  {reference}
+
+  Criteria:
+  {criteria}
+
+  Return JSON with one key per criterion and an integer score, e.g.:
+  {{"correctness": 4, "clarity": 5, "completeness": 3}}
