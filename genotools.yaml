@@ -1,0 +1,10 @@
+name: geno-iso
+version: "0.1.0"
+description: >-
+  Isolated Docker containers for running coding agents.
+  Build images, manage container lifecycle, and extract credentials.
+
+venv:
+  name: geno-iso
+  deps:
+    - click>=8.0

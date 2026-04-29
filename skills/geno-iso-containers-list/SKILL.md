@@ -2,7 +2,7 @@
 name: geno-iso-containers-list
 description: >-
   List geno-iso containers (running and stopped).
-  Use when user says /gt-iso-containers-list or asks what containers exist.
+  Use when user says /geno-iso-containers-list or asks what containers exist.
 allowed-tools: "Bash(geno-iso ls *)"
 license: MIT
 metadata:
