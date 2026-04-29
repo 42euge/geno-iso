@@ -44,12 +44,17 @@ def main():
 @click.option("--agent", "-a", default=docker.DEFAULT_AGENT, type=click.Choice(list(docker.AGENTS)), help="Agent to run")
 @click.option("--rm", "ephemeral", is_flag=True, help="One-shot mode: run and remove on exit")
 @click.option("--version", "-v", "version", default=None, help="Agent CLI version override")
+@click.option("--seed-history", is_flag=True, help="Copy host conversation history into the container")
 @click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
-def run(name, workspace, agent, ephemeral, version, agent_args):
+def run(name, workspace, agent, ephemeral, version, seed_history, agent_args):
     """Create a persistent container, or run a one-shot with --rm.
 
     Persistent mode (default): creates a background container you enter with 'it'.
     One-shot mode (--rm): runs the agent with ARGS and removes the container on exit.
+
+    By default, settings are copied in and an empty store is created so
+    Claude Code skips onboarding. Use --seed-history to also copy your
+    full local conversation history.
     """
     ws = Path(workspace) if workspace else Path.cwd()
     name = name or docker.derive_name(ws)
@@ -70,10 +75,12 @@ def run(name, workspace, agent, ephemeral, version, agent_args):
         )
         raise SystemExit(result.returncode)
 
-    result = docker.create_container(name=name, workspace=ws, env_file=env_path, agent=agent)
+    result = docker.create_container(
+        name=name, workspace=ws, env_file=env_path,
+        agent=agent, seed_history=seed_history,
+    )
     if result.returncode != 0:
         raise SystemExit(result.returncode)
-    entrypoint = agent if agent != "claude" else "claude"
     click.echo(f"Container ready: {docker.CONTAINER_PREFIX}{name} ({agent})")
     click.echo(f"  Enter with:  geno-iso it {name}")
     click.echo(f"  Shell with:  geno-iso it {name} --shell")
@@ -123,6 +130,11 @@ def it_cmd(name, shell, cmd):
         exec_cmd = "bash"
     else:
         exec_cmd = _detect_agent(name)
+
+    env_path = _default_env_path()
+    credentials.ensure_fresh(env_path)
+    docker.inject_env(name, env_path)
+
     docker.exec_into(name, cmd=exec_cmd)
 
 
