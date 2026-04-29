@@ -3,8 +3,10 @@
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 DOCKERFILES_DIR = Path.home() / ".geno" / "geno-iso" / "dockerfiles"
@@ -112,11 +114,17 @@ def container_running(name: str) -> bool:
     return _full_name(name) in r.stdout
 
 
+HOST_CLAUDE_DIR = Path.home() / ".claude"
+SEED_COPY_FILES = ("CLAUDE.md",)
+SETTINGS_STRIP_KEYS = {"hooks", "enabledPlugins", "extraKnownMarketplaces"}
+
+
 def create_container(
     name: str,
     workspace: Path,
     env_file: Path,
     agent: str = DEFAULT_AGENT,
+    seed_history: bool = False,
 ) -> subprocess.CompletedProcess:
     """Create a persistent container that stays alive for exec."""
     full = _full_name(name)
@@ -131,7 +139,7 @@ def create_container(
         subprocess.run(["docker", "start", full], capture_output=True)
         return subprocess.CompletedProcess([], 0)
 
-    return subprocess.run(
+    result = subprocess.run(
         [
             "docker", "run", "-d",
             "--name", full,
@@ -144,6 +152,124 @@ def create_container(
         ],
         capture_output=True,
     )
+    if result.returncode == 0:
+        _seed_settings(full, copy_history=seed_history)
+    return result
+
+
+_STORE_SCHEMA = """\
+CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+    id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric);
+CREATE TABLE `base_messages` (
+    `uuid` text PRIMARY KEY NOT NULL, `parent_uuid` text,
+    `session_id` text NOT NULL, `timestamp` integer NOT NULL,
+    `message_type` text NOT NULL, `cwd` text NOT NULL,
+    `user_type` text NOT NULL, `version` text NOT NULL,
+    `isSidechain` integer NOT NULL,
+    FOREIGN KEY (`parent_uuid`) REFERENCES `base_messages`(`uuid`));
+CREATE TABLE `user_messages` (
+    `uuid` text PRIMARY KEY NOT NULL, `message` text NOT NULL,
+    `tool_use_result` text, `timestamp` integer NOT NULL,
+    FOREIGN KEY (`uuid`) REFERENCES `base_messages`(`uuid`));
+CREATE TABLE `assistant_messages` (
+    `uuid` text PRIMARY KEY NOT NULL, `cost_usd` real NOT NULL,
+    `duration_ms` integer NOT NULL, `message` text NOT NULL,
+    `is_api_error_message` integer DEFAULT false NOT NULL,
+    `timestamp` integer NOT NULL, `model` text DEFAULT '' NOT NULL,
+    FOREIGN KEY (`uuid`) REFERENCES `base_messages`(`uuid`));
+CREATE TABLE `conversation_summaries` (
+    `leaf_uuid` text PRIMARY KEY NOT NULL, `summary` text NOT NULL,
+    `updated_at` integer NOT NULL,
+    FOREIGN KEY (`leaf_uuid`) REFERENCES `base_messages`(`uuid`));
+"""
+
+
+def _seed_settings(full_name: str, *, copy_history: bool = False) -> None:
+    """Copy host settings into the container (one-time, no bind mount).
+
+    settings.json is sanitized — hooks and plugin entries that reference
+    host-only paths are stripped so Claude Code starts cleanly.
+
+    copy_history=False (default): creates an empty __store.db to skip onboarding.
+    copy_history=True: copies the host's full __store.db (conversation history).
+    """
+    for fname in SEED_COPY_FILES:
+        src = HOST_CLAUDE_DIR / fname
+        if src.exists():
+            subprocess.run(
+                ["docker", "cp", str(src), f"{full_name}:/home/agent/.claude/{fname}"],
+                capture_output=True,
+            )
+
+    settings_src = HOST_CLAUDE_DIR / "settings.json"
+    if settings_src.exists():
+        settings = json.loads(settings_src.read_text())
+        for key in SETTINGS_STRIP_KEYS:
+            settings.pop(key, None)
+        payload = json.dumps(settings, indent=2)
+        subprocess.run(
+            ["docker", "exec", full_name,
+             "sh", "-c", f"cat > /home/agent/.claude/settings.json << 'GENO_EOF'\n{payload}\nGENO_EOF"],
+            capture_output=True,
+        )
+
+    if copy_history:
+        host_db = HOST_CLAUDE_DIR / "__store.db"
+        if host_db.exists():
+            subprocess.run(
+                ["docker", "cp", str(host_db), f"{full_name}:/home/agent/.claude/__store.db"],
+                capture_output=True,
+            )
+    else:
+        _seed_store_db(full_name)
+
+    _seed_onboarding_flag(full_name)
+
+
+def _seed_onboarding_flag(full_name: str) -> None:
+    """Write ~/.claude.json with hasCompletedOnboarding and workspace trust pre-accepted."""
+    state: dict = {
+        "hasCompletedOnboarding": True,
+        "numStartups": 1,
+        "projects": {
+            "/home/agent/workspace": {
+                "hasTrustDialogAccepted": True,
+                "allowedTools": [],
+            },
+        },
+    }
+    host_state = Path.home() / ".claude.json"
+    if host_state.exists():
+        try:
+            host_data = json.loads(host_state.read_text())
+            if "theme" in host_data:
+                state["theme"] = host_data["theme"]
+            if "lastOnboardingVersion" in host_data:
+                state["lastOnboardingVersion"] = host_data["lastOnboardingVersion"]
+        except (json.JSONDecodeError, OSError):
+            pass
+    payload = json.dumps(state, indent=2)
+    subprocess.run(
+        ["docker", "exec", full_name,
+         "sh", "-c", f"cat > /home/agent/.claude.json << 'GENO_EOF'\n{payload}\nGENO_EOF"],
+        capture_output=True,
+    )
+
+
+def _seed_store_db(full_name: str) -> None:
+    """Create an empty __store.db so Claude Code skips first-run onboarding."""
+    fd, tmp = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    try:
+        conn = sqlite3.connect(tmp)
+        conn.executescript(_STORE_SCHEMA)
+        conn.close()
+        subprocess.run(
+            ["docker", "cp", tmp, f"{full_name}:/home/agent/.claude/__store.db"],
+            capture_output=True,
+        )
+    finally:
+        os.unlink(tmp)
 
 
 def run_ephemeral(
@@ -186,12 +312,37 @@ def list_containers() -> list[dict]:
     return containers
 
 
+def inject_env(name: str, env_file: Path) -> None:
+    """Push fresh env vars into a running container for the next exec."""
+    full = _full_name(name)
+    if not env_file.exists():
+        return
+    pairs = []
+    for line in env_file.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            pairs.append(line)
+    if not pairs:
+        return
+    script = "\n".join(
+        f"export {p.split('=', 1)[0]}='{p.split('=', 1)[1]}'" for p in pairs
+    )
+    subprocess.run(
+        ["docker", "exec", full, "sh", "-c",
+         f"cat > /home/agent/.claude_env << 'GENO_EOF'\n{script}\nGENO_EOF"],
+        capture_output=True,
+    )
+
+
 def exec_into(name: str, cmd: str = "claude") -> None:
     """Replace current process with docker exec into the container."""
     full = _full_name(name)
     if not container_running(name):
         raise SystemExit(f"Container '{full}' is not running. Start it with 'geno-iso run {name}'.")
-    os.execvp("docker", ["docker", "exec", "-it", full, cmd])
+    os.execvp("docker", [
+        "docker", "exec", "-it", full,
+        "sh", "-c", "[ -f /home/agent/.claude_env ] && . /home/agent/.claude_env; exec " + cmd,
+    ])
 
 
 def exec_cmd(name: str, cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
