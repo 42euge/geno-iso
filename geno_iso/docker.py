@@ -396,14 +396,25 @@ def _ensure_geno_tools(name: str) -> None:
     subprocess.run(["docker", "exec", full, "pipx", "install", "git+https://github.com/42euge/geno-tools.git"])
 
 
-def install_skills(name: str, skills: list[str], callback=None) -> None:
-    """Install geno-* skillsets via geno-tools inside the container."""
+def install_skills(name: str, skills: list[str], callback=None) -> list[str]:
+    """Install geno-* skillsets via geno-tools inside the container.
+
+    Returns a list of skillsets that failed to install.
+    """
     _ensure_geno_tools(name)
     full = _full_name(name)
+    failed: list[str] = []
     for skill in skills:
         if callback:
             callback(skill)
-        subprocess.run(["docker", "exec", full, GENO_TOOLS, "install", skill])
+        r = subprocess.run(
+            ["docker", "exec", full, GENO_TOOLS, "install", skill],
+            capture_output=True, text=True,
+        )
+        if r.returncode != 0:
+            print(f"  warn: failed to install {skill}: {r.stderr.strip()}", file=sys.stderr)
+            failed.append(skill)
+    return failed
 
 
 def install_npx_skills(name: str, packages: list[str], callback=None) -> None:
