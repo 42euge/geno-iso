@@ -4,7 +4,7 @@ description: >-
   Spin up an isolated coding agent container with a mounted workspace.
   Use when user says /geno-iso-containers-run or wants to run a coding agent in Docker.
 allowed-tools: "Bash(geno-iso run *) Bash(geno-iso build *) Bash(geno-iso creds)"
-argument-hint: "[name] [workspace-path] [--rm] [-- claude-args...]"
+argument-hint: "[name] [workspace-path] [--rm] [-- agent-args...]"
 license: MIT
 metadata:
   author: 42euge

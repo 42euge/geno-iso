@@ -24,7 +24,7 @@ which geno-iso >/dev/null 2>&1 || echo "geno-iso CLI not on PATH. Run: geno-tool
 | Command | Description |
 |---|---|
 | `geno-iso run [NAME] [WORKSPACE]` | Create a persistent container (background, enter with `it`) |
-| `geno-iso run --rm [NAME] [WORKSPACE] -- [CLAUDE_ARGS]` | One-shot: run claude and remove container |
+| `geno-iso run --rm [NAME] [WORKSPACE] -- [AGENT_ARGS]` | One-shot: run agent and remove container |
 | `geno-iso ls [--all]` | List running (or all) geno-iso containers |
 | `geno-iso it [NAME] [--shell]` | Enter a running container (agent CLI or bash) |
 | `geno-iso stop [NAME]` | Stop a running container |
