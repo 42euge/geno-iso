@@ -258,6 +258,17 @@ def build(agent, version, profile):
     click.echo("Done.")
 
 
+@main.command("profiles")
+def profiles_cmd():
+    """List available skillset profiles."""
+    for name, prof in profiles.BUILTIN.items():
+        skills = ", ".join(prof.skillsets) if prof.skillsets else "(none)"
+        marker = " [Dockerfile]" if prof.dockerfile else ""
+        click.echo(f"  {name:<12} {prof.description}")
+        click.echo(f"  {'':<12} skillsets: {skills}{marker}")
+        click.echo()
+
+
 @main.command("extend")
 @click.argument("name", required=False)
 @click.option("--skill", "-s", multiple=True, help="Geno skillset via geno-tools")
