@@ -2,7 +2,7 @@
 
 import click
 
-from geno_iso import docker, credentials
+from geno_iso import docker, credentials, profiles
 from pathlib import Path
 
 
@@ -24,9 +24,13 @@ def _pick_one(running_only: bool = True) -> str:
 
 
 def _image_exists(agent: str, version: str) -> bool:
+    return _image_exists_tag(docker.image_tag(agent, version))
+
+
+def _image_exists_tag(tag: str) -> bool:
     import subprocess
     r = subprocess.run(
-        ["docker", "images", "-q", docker.image_tag(agent, version)],
+        ["docker", "images", "-q", tag],
         capture_output=True, text=True,
     )
     return bool(r.stdout.strip())
@@ -42,37 +46,36 @@ def main():
 @click.argument("name", required=False)
 @click.argument("workspace", required=False, type=click.Path(exists=True))
 @click.option("--agent", "-a", default=docker.DEFAULT_AGENT, type=click.Choice(list(docker.AGENTS)), help="Agent to run")
+@click.option("--profile", "-p", default="bare", type=click.Choice(profiles.NAMES), help="Skillset profile")
 @click.option("--rm", "ephemeral", is_flag=True, help="One-shot mode: run and remove on exit")
 @click.option("--version", "-v", "version", default=None, help="Agent CLI version override")
 @click.option("--seed-history", is_flag=True, help="Copy host conversation history into the container")
-@click.option("--skills", "-s", multiple=True, help="Geno skillsets via geno-tools (e.g. -s media -s research)")
+@click.option("--skills", "-s", multiple=True, help="Extra skillsets on top of the profile")
 @click.option("--npx-skill", multiple=True, help="Vercel-style skills via npx (e.g. --npx-skill user/repo)")
 @click.option("--plugin", multiple=True, help="Claude Code plugins from git repos")
 @click.option("--mcp-config", type=click.Path(exists=True), help="MCP config file to copy into container")
 @click.argument("agent_args", nargs=-1, type=click.UNPROCESSED)
-def run(name, workspace, agent, ephemeral, version, seed_history, skills, npx_skill, plugin, mcp_config, agent_args):
+def run(name, workspace, agent, profile, ephemeral, version, seed_history, skills, npx_skill, plugin, mcp_config, agent_args):
     """Create a persistent container, or run a one-shot with --rm.
 
-    Persistent mode (default): creates a background container you enter with 'it'.
-    One-shot mode (--rm): runs the agent with ARGS and removes the container on exit.
-
-    By default, settings are copied in and an empty store is created so
-    Claude Code skips onboarding. Use --seed-history to also copy your
-    full local conversation history.
-
     \b
-    Pre-install extensions to keep your host agent clean:
-        geno-iso run -s media -s research myproject .
-        geno-iso run --npx-skill user/repo myproject .
-        geno-iso run --plugin git@github.com:user/plugin.git myproject .
-        geno-iso run --mcp-config ./mcp.json myproject .
+    Profiles bundle skillsets (bare, base, standard, full):
+        geno-iso run --profile base dev .
+        geno-iso run --profile standard -s geno-media dev .
     """
     ws = Path(workspace) if workspace else Path.cwd()
     name = name or docker.derive_name(ws)
 
-    if not _image_exists(agent, version or docker.AGENTS[agent]["default_version"]):
+    prof = profiles.resolve(profile)
+    profile_df = prof.dockerfile
+
+    v = version or docker.AGENTS[agent]["default_version"]
+    if not _image_exists(agent, v):
         click.echo(f"Image not found. Building {agent}...")
         docker.build_image(agent=agent, version=version)
+    if profile_df and not _image_exists_tag(docker.image_tag(agent, v, profile_df)):
+        click.echo(f"Profile image not found. Building {agent}-{profile_df}...")
+        docker.build_profile_image(agent=agent, profile_dockerfile=profile_df, version=version)
 
     env_path = _default_env_path()
     credentials.ensure_fresh(env_path)
@@ -89,18 +92,19 @@ def run(name, workspace, agent, ephemeral, version, seed_history, skills, npx_sk
     result = docker.create_container(
         name=name, workspace=ws, env_file=env_path,
         agent=agent, seed_history=seed_history,
+        profile_dockerfile=profile_df,
     )
     if result.returncode != 0:
         raise SystemExit(result.returncode)
 
-    _install_extensions(name, skills, npx_skill, plugin, mcp_config)
+    merged_skills = profiles.resolve_skillsets(profile, list(skills))
+    _install_extensions(name, merged_skills, npx_skill, plugin, mcp_config)
 
-    click.echo(f"Container ready: {docker.CONTAINER_PREFIX}{name} ({agent})")
-    installed = list(skills) + list(npx_skill) + list(plugin)
-    if installed:
-        click.echo(f"  Extensions: {', '.join(installed)}")
+    click.echo(f"Container ready: {docker.CONTAINER_PREFIX}{name} ({agent}, profile={profile})")
+    if merged_skills:
+        click.echo(f"  Skillsets:   {', '.join(merged_skills)}")
     if mcp_config:
-        click.echo(f"  MCP config: {mcp_config}")
+        click.echo(f"  MCP config:  {mcp_config}")
     click.echo(f"  Enter with:  geno-iso it {name}")
     click.echo(f"  Shell with:  geno-iso it {name} --shell")
     click.echo(f"  Stop with:   geno-iso stop {name}")
@@ -212,10 +216,12 @@ def rm(name, force):
 @main.command()
 @click.option("--agent", "-a", default=None, type=click.Choice(list(docker.AGENTS)), help="Agent to build (omit for all)")
 @click.option("--version", "-v", "version", default=None, help="Agent CLI version")
-def build(agent, version):
+@click.option("--profile", "-p", default=None, type=click.Choice(profiles.NAMES), help="Also build a profile image layer")
+def build(agent, version, profile):
     """Build agent Docker images.
 
     Builds the base image first, then the specified agent (or all agents).
+    Use --profile to also build the profile layer (e.g. --profile full).
     """
     click.echo("Building base image...")
     result = docker.build_base()
@@ -234,6 +240,20 @@ def build(agent, version):
             click.echo(f"Failed to build {a}", err=True)
             raise SystemExit(result.returncode)
         click.echo(f"  Built: {docker.image_tag(a, v)}")
+
+    if profile:
+        prof = profiles.resolve(profile)
+        if prof.dockerfile:
+            for a in agents_to_build:
+                v = version if agent else None
+                click.echo(f"Building {a}-{prof.dockerfile}...")
+                result = docker.build_profile_image(agent=a, profile_dockerfile=prof.dockerfile, version=v)
+                if result.returncode != 0:
+                    click.echo(f"Failed to build {a}-{prof.dockerfile}", err=True)
+                    raise SystemExit(result.returncode)
+                click.echo(f"  Built: {docker.image_tag(a, v, prof.dockerfile)}")
+        else:
+            click.echo(f"Profile '{profile}' has no extra system deps — no separate image needed.")
 
     click.echo("Done.")
 
