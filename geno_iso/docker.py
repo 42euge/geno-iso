@@ -34,13 +34,18 @@ AGENTS = {
 DEFAULT_AGENT = "claude"
 
 
-def image_tag(agent: str, version: str | None = None) -> str:
+def _image_name(agent: str, profile: str | None = None) -> str:
+    suffix = f"-{profile}" if profile else ""
+    return f"{IMAGE_PREFIX}-{agent}{suffix}"
+
+
+def image_tag(agent: str, version: str | None = None, profile: str | None = None) -> str:
     v = version or AGENTS[agent]["default_version"]
-    return f"{IMAGE_PREFIX}-{agent}:{v}"
+    return f"{_image_name(agent, profile)}:{v}"
 
 
-def image_latest(agent: str) -> str:
-    return f"{IMAGE_PREFIX}-{agent}:latest"
+def image_latest(agent: str, profile: str | None = None) -> str:
+    return f"{_image_name(agent, profile)}:latest"
 
 
 def derive_name(workspace: Path) -> str:
@@ -98,6 +103,18 @@ def build_image(agent: str = DEFAULT_AGENT, version: str | None = None) -> subpr
     ])
 
 
+def build_profile_image(agent: str, profile_dockerfile: str, version: str | None = None) -> subprocess.CompletedProcess:
+    """Build a profile layer on top of an existing agent image."""
+    build_dir = _dockerfile_dir(f"{agent}-{profile_dockerfile}")
+    v = version or AGENTS[agent]["default_version"]
+    return subprocess.run([
+        "docker", "build",
+        "-t", image_tag(agent, v, profile_dockerfile),
+        "-t", image_latest(agent, profile_dockerfile),
+        str(build_dir),
+    ])
+
+
 def container_exists(name: str) -> bool:
     r = subprocess.run(
         ["docker", "ps", "-a", "--filter", f"name=^{_full_name(name)}$", "--format", "{{.Names}}"],
@@ -125,6 +142,7 @@ def create_container(
     env_file: Path,
     agent: str = DEFAULT_AGENT,
     seed_history: bool = False,
+    profile_dockerfile: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Create a persistent container that stays alive for exec."""
     full = _full_name(name)
@@ -147,7 +165,7 @@ def create_container(
             "-v", f"{workspace}:/home/agent/workspace",
             "-w", "/home/agent/workspace",
             "--entrypoint", "tail",
-            image_latest(agent),
+            image_latest(agent, profile_dockerfile),
             "-f", "/dev/null",
         ],
         capture_output=True,
