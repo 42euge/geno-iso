@@ -224,6 +224,7 @@ def _seed_settings(full_name: str, *, copy_history: bool = False) -> None:
         _seed_store_db(full_name)
 
     _seed_onboarding_flag(full_name)
+    _install_geno_tools_plugin(full_name)
 
 
 def _seed_onboarding_flag(full_name: str) -> None:
@@ -252,6 +253,20 @@ def _seed_onboarding_flag(full_name: str) -> None:
     subprocess.run(
         ["docker", "exec", full_name,
          "sh", "-c", f"cat > /home/agent/.claude.json << 'GENO_EOF'\n{payload}\nGENO_EOF"],
+        capture_output=True,
+    )
+
+
+def _install_geno_tools_plugin(full_name: str) -> None:
+    """Install geno-tools plugin from scratch inside the container."""
+    subprocess.run(
+        ["docker", "exec", full_name,
+         "claude", "plugin", "marketplace", "add", "42euge/geno-tools"],
+        capture_output=True,
+    )
+    subprocess.run(
+        ["docker", "exec", full_name,
+         "claude", "plugin", "install", "geno-tools@geno-tools"],
         capture_output=True,
     )
 
