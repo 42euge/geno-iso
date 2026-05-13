@@ -9,6 +9,16 @@ license: MIT
 metadata:
   author: 42euge
   version: "0.1.0"
+observability:
+  success_signal: "developer found the reference info they needed and unblocked their task"
+  failure_signals:
+    - "guide content did not address the developer's question"
+    - "container startup debugging steps failed to resolve the issue"
+  knowledge_reads:
+    - "geno-iso source code (docker.py, credentials.py, cli.py)"
+    - "container filesystem layout and seeding pipeline"
+  knowledge_writes:
+    - "none (reference documentation, no side effects)"
 ---
 
 # geno-iso Development Guide
@@ -99,3 +109,19 @@ Re-point with `pipx install -e /path/to/workspace/geno-iso --force`.
 `geno-iso run --seed-history dev .` copies the host's full `__store.db`
 instead of creating an empty one. This lets `claude --continue` work inside
 the container with host conversation history.
+
+## Completion
+
+When this skill finishes, emit a trace:
+
+```bash
+geno-trace emit \
+  --skill geno-iso-dev-guide \
+  --status <success|failure|abandoned> \
+  --tool-calls <approximate count> \
+  --errors <count of tool/command errors>
+```
+
+- `success` = developer's question was answered or debugging issue was resolved using the guide
+- `failure` = guide content was insufficient to address the question or issue
+- `abandoned` = user stopped early
