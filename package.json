@@ -9,7 +9,8 @@
     "geno-iso-containers-enter": "skills/geno-iso-containers-enter",
     "geno-iso-images-build": "skills/geno-iso-images-build",
     "geno-iso-credentials-extract": "skills/geno-iso-credentials-extract",
-    "geno-iso-dev-guide": "skills/geno-iso-dev-guide"
+    "geno-iso-dev-guide": "skills/geno-iso-dev-guide",
+    "geno-iso-housekeep": "skills/geno-iso-housekeep"
   },
   "repository": {
     "type": "git",

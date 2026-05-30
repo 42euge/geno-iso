@@ -13,6 +13,7 @@
 | geno-iso-images-build | images | /geno-iso-images-build |
 | geno-iso-credentials-extract | credentials | /geno-iso-credentials-extract |
 | geno-iso-dev-guide | -- | /geno-iso-dev-guide |
+| geno-iso-housekeep | -- | /geno-iso-housekeep |
 
 ## Repo structure
 
@@ -40,7 +41,8 @@ geno-iso/
 │   ├── geno-iso-containers-enter/     # interactive enter
 │   ├── geno-iso-images-build/         # build Docker image
 │   ├── geno-iso-credentials-extract/  # refresh credentials
-│   └── geno-iso-dev-guide/            # development guide
+│   ├── geno-iso-dev-guide/            # development guide
+│   └── geno-iso-housekeep/            # background housekeeping daemon
 └── docs/                # MkDocs Material site
 ```
 
@@ -50,13 +52,25 @@ geno-iso/
 
 Skills in this repo use the canonical `geno-` prefix in source (e.g., `geno-iso-containers-run`). When installed via `geno-tools`, the installer may configure shorter `/gt-` aliases (e.g., `/gt-iso-containers-run`) depending on the user's settings. Always author skill names and docs with the canonical `geno-` prefix; alias mapping is handled at install time and never committed to this repo.
 
+### Agent instruction files
+
+`AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are **full copies** of `GENO.md` — not pointers (`@./GENO.md`). After every edit to `GENO.md`, run:
+
+```bash
+cp GENO.md AGENTS.md && cp GENO.md CLAUDE.md && cp GENO.md GEMINI.md
+```
+
+Rationale: pointer files are fragile across agent runtimes and editor integrations. Full copies ensure every agent sees the same instructions regardless of runtime.
+
 ### Adding a new skill
 
 1. Create a directory under `skills/` named after the skill (e.g., `skills/geno-iso-<verb>-<noun>/`).
 2. Add a `SKILL.md` with YAML front matter (`name`, `description`, `allowed-tools`, `argument-hint`, `license`, `metadata`).
 3. Register the skill in `package.json` under the `skills` map.
-4. Add a row to the Skills table in this file.
-5. If the skill belongs to a sub-skillset, note it in the table's Sub-skillset column.
+4. Register the skill in `skills.sh.json` under the appropriate grouping.
+5. Add a row to the Skills table in this file.
+6. If the skill belongs to a sub-skillset, note it in the table's Sub-skillset column.
+7. Copy GENO.md → AGENTS.md, CLAUDE.md, GEMINI.md.
 
 ## CLI
 

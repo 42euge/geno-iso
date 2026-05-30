@@ -1,0 +1,50 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Containers",
+      "description": "Docker container lifecycle — run, list, and enter isolated agent containers.",
+      "skills": [
+        "geno-iso-containers-run",
+        "geno-iso-containers-list",
+        "geno-iso-containers-enter"
+      ]
+    },
+    {
+      "title": "Images",
+      "description": "Build and manage geno-iso Docker images.",
+      "skills": [
+        "geno-iso-images-build"
+      ]
+    },
+    {
+      "title": "Credentials",
+      "description": "Extract and refresh OAuth credentials from macOS Keychain.",
+      "skills": [
+        "geno-iso-credentials-extract"
+      ]
+    },
+    {
+      "title": "Housekeeping",
+      "description": "Background housekeeping — wiki maintenance, session mining, health aggregation.",
+      "skills": [
+        "geno-iso-housekeep"
+      ]
+    },
+    {
+      "title": "Development",
+      "description": "Development guide and debugging reference for geno-iso contributors.",
+      "skills": [
+        "geno-iso-dev-guide"
+      ]
+    },
+    {
+      "title": "Umbrella",
+      "description": "The geno-iso skillset itself.",
+      "skills": [
+        "geno-iso"
+      ]
+    }
+  ]
+}
